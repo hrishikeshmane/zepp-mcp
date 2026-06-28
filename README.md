@@ -2,8 +2,9 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that gives any
 MCP-capable AI agent read access to your **Zepp / Amazfit** fitness data:
-workouts, runs, daily steps, distance, calories, sleep, GPS + heart-rate tracks,
-and paired devices.
+workouts, runs, daily steps, distance, calories, detailed sleep stages,
+GPS + heart-rate tracks, and health metrics (SpO2, stress, PAI, body battery,
+readiness, HRV) — plus paired devices.
 
 It authenticates against the Zepp cloud (the same data the mobile app shows)
 using the 2025 encrypted `api-user.zepp.com` flow — no phone, root, or Bluetooth
@@ -11,16 +12,46 @@ required.
 
 ## Tools
 
+### Core
+
 | Tool | Returns |
 |------|---------|
-| `zepp_status` | Login state and user id |
+| `zepp_status` | Login state, user id, and the resolved data host |
 | `get_devices` | Paired watches/bands (MAC, auth key) |
 | `get_daily_summary(from_date?, to_date?)` | Per-day steps, distance (m), calories, sleep (min). ISO dates; defaults to the last 30 days |
-| `list_workouts(limit=50)` | Workout sessions: `trackid`, type, distance, calories, pace, avg/max HR, city, device |
-| `get_workout_detail(trackid, source?)` | Full session: GPS, altitude, pace, and HR series (`source` auto-resolves) |
+| `list_workouts(limit=50)` | Raw workout sessions: `trackid`, type, distance, calories, pace, avg/max HR, city, device |
+| `list_workouts_named(limit=50)` | Workouts enriched with a human-readable `type_name`, plus distance, calories, avg HR, duration, and date |
+| `get_workout_detail(trackid, source?)` | Full raw session: GPS, altitude, pace, and HR series (`source` auto-resolves; long arrays truncated) |
+| `get_workout_track(trackid, source?, include_full=False, max_points=50)` | Decoded track: GPS coordinates, HR series, altitude, pace, distance + summary stats. Long series downsampled unless `include_full=True` |
 
-Common workout `type` codes: `1` outdoor run, `6` walk, `8` treadmill,
-`9` outdoor cycling, `10` indoor cycling, `49` strength/other.
+### Sleep
+
+| Tool | Returns |
+|------|---------|
+| `get_sleep_detail(from_date?, to_date?)` | Per-night deep/light/REM/awake minutes, sleep score, resting HR, awake count, and a decoded stage timeline. Defaults to the last 14 days |
+
+### Health metrics
+
+| Tool | Returns |
+|------|---------|
+| `get_spo2(from_date?, to_date?)` | Blood-oxygen (SpO2) readings and events |
+| `get_stress(from_date?, to_date?, include_series=False)` | All-day stress: per-day min/max/avg and zone proportions; optional intraday series |
+| `get_pai(from_date?, to_date?)` | PAI (Personal Activity Intelligence): daily/total PAI, resting & max HR, HR-zone breakdown |
+| `get_body_battery(from_date?, to_date?)` | Body-battery / energy (physical & mental) levels |
+| `get_readiness(from_date?, to_date?)` | Daily readiness score with sleep HRV, sleep resting HR, skin temperature, and component scores |
+| `get_hrv(from_date?, to_date?)` | Heart-rate variability (SDNN): per-record min/max/avg |
+
+All date arguments are ISO `YYYY-MM-DD` and default to a recent window (30 days,
+or 14 for sleep). Data is available back to the account's creation date; requests
+for earlier dates simply return nothing.
+
+Common workout `type` codes: `1` running, `6` walking, `8` treadmill,
+`9` outdoor cycling, `10` indoor cycling, `16` other, `23` indoor rowing,
+`92` badminton. Unknown codes are surfaced as `unknown_<n>`.
+
+> **Availability note:** health metrics (SpO2, stress, PAI, body battery,
+> readiness, HRV) and detailed sleep depend on your device's sensors and the
+> features you have enabled. Tools return an empty list when no data exists.
 
 ## Requirements
 
@@ -31,7 +62,7 @@ Common workout `type` codes: `1` outdoor run, `6` walk, `8` treadmill,
 ## Setup
 
 ```bash
-git clone https://github.com/drfittri/zepp-mcp.git
+git clone https://github.com/hrishikeshmane/zepp-mcp.git
 cd zepp-mcp
 uv sync                            # install dependencies
 cp .env.example .env               # then add your Zepp credentials to .env
@@ -98,8 +129,25 @@ an `"env"` block (not recommended for shared or committed config files):
 - The region is resolved automatically from the account at login.
 - GPS, heart-rate, and altitude arrays returned by `get_workout_detail` are
   truncated to a short sample plus a length count to stay token-efficient for
-  agents. Remove the truncation block in `huami_client.py` (`workout_detail`) if
-  you need the full raw track data.
+  agents. Use `get_workout_track` for decoded series, or remove the truncation
+  block in `huami_client.py` (`workout_detail`) for the full raw track data.
+- A cached `app_token` can go stale during a long-lived server process. The
+  client detects Zepp's "invalid token" rejection and transparently re-logs in
+  once before retrying, so results never silently contain an error body.
+- The Zepp cloud rate-limits aggressively (HTTP 429), including the login
+  endpoint. The server logs in once and reuses the session; if you issue many
+  health-metric calls in quick succession, space them out.
+
+## Project layout
+
+- `server.py` — FastMCP server; registers every tool.
+- `huami_client.py` — authenticated Zepp cloud client (login, daily summary,
+  workouts, devices) with stale-token self-healing.
+- `zepp_sleep.py` — detailed sleep-stage parsing (`get_sleep_detail`).
+- `zepp_sports.py` — sport-type decoding and workout track decoding
+  (`list_workouts_named`-style enrichment, `get_workout_track`).
+- `zepp_health_events.py` — health-metric event readers (SpO2, stress, PAI,
+  body battery, readiness, HRV).
 
 ## Credits
 

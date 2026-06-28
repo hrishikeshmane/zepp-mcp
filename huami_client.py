@@ -45,6 +45,7 @@ def _data_headers(app_token: str) -> dict:
 class HuamiClient:
     email: str
     password: str
+    data_host: str = DATA_HOST
     session: ZeppSession | None = None
     _http: requests.Session = field(default_factory=requests.Session)
     _source_cache: dict[str, str] = field(default_factory=dict)
@@ -69,6 +70,16 @@ class HuamiClient:
 
     def _get(self, path: str, params: dict) -> dict:
         self._ensure()
+        j = self._raw_get(path, params)
+        # Cached app_token can go stale during a long-lived process. Zepp signals
+        # this with code 0 / "invalid token" (data.code 0102). Re-login once and
+        # retry so a stale token self-heals instead of leaking into results.
+        if _is_invalid_token(j):
+            self.login()
+            j = self._raw_get(path, params)
+        return j
+
+    def _raw_get(self, path: str, params: dict) -> dict:
         url = f"https://{DATA_HOST}{path}"
         r = self._http.get(
             url, headers=_data_headers(self.app_token), params=params, timeout=30
@@ -148,6 +159,15 @@ class HuamiClient:
                 if isinstance(v, str) and len(v) > 200:
                     data[k] = {"_encoded_len": len(v), "_sample": v[:120]}
         return data
+
+
+def _is_invalid_token(j) -> bool:
+    """True when Zepp rejected the app_token (code 0 / 'invalid token' / 0102)."""
+    if not isinstance(j, dict):
+        return False
+    msg = str(j.get("message", "")).lower()
+    data_code = str((j.get("data") or {}).get("code", "")) if isinstance(j.get("data"), dict) else ""
+    return "invalid token" in msg or data_code == "0102"
 
 
 def _maybe_b64_json(raw):
