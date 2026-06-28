@@ -173,6 +173,13 @@ This fork adds:
 - Login handshake powered by the [`huami-token`](https://codeberg.org/argrento/huami-token)
   project.
 
+## License
+
+Released under the [MIT License](LICENSE). Note that the upstream
+[`drfittri/zepp-mcp`](https://github.com/drfittri/zepp-mcp) repository this is
+forked from does not publish a license; the MIT terms here apply to this fork's
+contributions.
+
 ## Disclaimer
 
 This is an unofficial client that uses a reverse-engineered Zepp cloud API. It is

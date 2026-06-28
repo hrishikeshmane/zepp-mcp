@@ -1,8 +1,10 @@
 [project]
 name = "zepp-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP server exposing Zepp/Amazfit fitness data (workouts, sleep, health metrics) to AI agents"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "huami-token>=0.8.0",
