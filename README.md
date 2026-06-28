@@ -149,10 +149,29 @@ an `"env"` block (not recommended for shared or committed config files):
 - `zepp_health_events.py` — health-metric event readers (SpO2, stress, PAI,
   body battery, readiness, HRV).
 
+## About this fork
+
+This is a fork of [`drfittri/zepp-mcp`](https://github.com/drfittri/zepp-mcp),
+which provided the original server and the core tools (`zepp_status`,
+`get_devices`, `get_daily_summary`, `list_workouts`, `get_workout_detail`).
+
+This fork adds:
+
+- **Health metrics** — `get_spo2`, `get_stress`, `get_pai`, `get_body_battery`,
+  `get_readiness`, `get_hrv` (via the `/users/{uid}/events` and
+  `/v2/users/me/events` endpoints).
+- **Detailed sleep** — `get_sleep_detail` (decoded stage timeline with
+  deep/light/REM/awake minutes, sleep score, and resting HR).
+- **Decoded workouts** — `list_workouts_named` (human-readable sport types) and
+  `get_workout_track` (decoded GPS / heart-rate / altitude / pace series).
+- **Stale-token self-healing** — the client detects Zepp's "invalid token"
+  rejection and transparently re-authenticates once before retrying.
+
 ## Credits
 
-Login handshake powered by the [`huami-token`](https://codeberg.org/argrento/huami-token)
-project.
+- Original MCP server: [`drfittri/zepp-mcp`](https://github.com/drfittri/zepp-mcp).
+- Login handshake powered by the [`huami-token`](https://codeberg.org/argrento/huami-token)
+  project.
 
 ## Disclaimer
 
